@@ -31,7 +31,14 @@
 
 package com.badlogicgames.gdx.bench;
 
+import java.util.Random;
+import java.util.concurrent.TimeUnit;
+
 import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.CompilerControl;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
@@ -47,17 +54,22 @@ import com.badlogic.gdx.graphics.g3d.model.NodeKeyframe;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Array;
 
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
 public class AnimationControllerBenchmark {
 
 	Array<NodeKeyframe<String>> keyFrames = new Array<NodeKeyframe<String>>();
 
-	@Param({"2", "4", "6", "8", "10", "12", "14", "16", "18", "20"}) public long potSize;
+	@Param({"2", "4", /* "6", "8", */ "10", /* "12", "14", "16" , */ "18", "20"}) public long potSize;
 
 	public float entropyFactor = 0; // 0 for minimum entropy
 
 	public float duration;
 	public long ntests;
+	public Random r;
+	public float minKeyframeTime;
+	public float maxKeyframeTime;
 
 	@Setup
 	public void setup () {
@@ -70,30 +82,30 @@ public class AnimationControllerBenchmark {
 		}
 		ntests = 1 << potSize;
 		System.out.println("setup: " + (1 << potSize));
+		r = new Random();
+		minKeyframeTime = keyFrames.get(0).keytime;
+		maxKeyframeTime = keyFrames.get(keyFrames.size - 1).keytime;
+	}
+
+	/** Return a value between [minKeyframTime, maxKeyframeTime) */
+	@CompilerControl(CompilerControl.Mode.DONT_INLINE)
+	public float random () {
+		return minKeyframeTime + r.nextFloat() * (maxKeyframeTime - minKeyframeTime);
 	}
 
 	@Benchmark
 	public void testGetFirstKeyframeIndexAtTimeBinSearchHeuristic (Blackhole bh) {
-		for (int i = 0; i < ntests; i++) {
-			bh.consume(AnimationControllerBench.getFirstKeyframeIndexAtTimeBinSearchHeuristic(keyFrames,
-				duration * (float)i / (float)(ntests - 1)));
-		}
+		bh.consume(AnimationControllerBench.getFirstKeyframeIndexAtTimeBinSearchHeuristic(keyFrames, random()));
 	}
 
 	@Benchmark
 	public void testGetFirstKeyframeIndexAtTimeBinSearch (Blackhole bh) {
-		for (int i = 0; i < ntests; i++) {
-			bh.consume(
-				AnimationControllerBench.getFirstKeyframeIndexAtTimeBinSearch(keyFrames, duration * (float)i / (float)(ntests - 1)));
-		}
+		bh.consume(AnimationControllerBench.getFirstKeyframeIndexAtTimeBinSearch(keyFrames, random()));
 	}
 
-	//@Benchmark
+	@Benchmark
 	public void testGetFirstKeyframeIndexAtTimeLinear (Blackhole bh) {
-		for (int i = 0; i < ntests; i++) {
-			bh.consume(
-				AnimationControllerBench.getFirstKeyframeIndexAtTimeLinear(keyFrames, duration * (float)i / (float)(ntests - 1)));
-		}
+		bh.consume(AnimationControllerBench.getFirstKeyframeIndexAtTimeLinear(keyFrames, random()));
 	}
 
 	public static void main (String[] args) throws RunnerException {
